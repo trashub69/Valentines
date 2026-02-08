@@ -1,78 +1,96 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@500;700&display=swap');
-
-
-:root{
---text: rgba(255,255,255,.95);
---muted: rgba(255,255,255,.78);
-
-
---glass: rgba(255,255,255,.11);
---glass2: rgba(255,255,255,.06);
-
-
---accent: #ff3aa9;
---accent2:#ff7ad9;
---accent3:#b36bff;
-
-
---shadow: 0 16px 90px rgba(0,0,0,.35);
-
-
-/* 🐶 dog palette tuned to the pink bg */
---dog-fur: #ff9adf;
---dog-fur-dark: #ff5fc8;
---dog-spot: #b36bff;
---dog-snout: #3b2445;
---dog-collar: #8b5cf6;
 }
 
 
-
-
-*{ box-sizing:border-box; }
-html,body{
-font-family: "Montserrat Alternates", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-color: var(--text);
-overflow:hidden;
-overscroll-behavior: none; /* mobile bounce fix */
-
-
-/* Animated candy gradient background */
-background:
-radial-gradient(1000px 700px at 15% 20%, rgba(255, 58, 169, 0.72), transparent 60%),
-radial-gradient(900px 700px at 85% 25%, rgba(255, 122, 217, 0.60), transparent 62%),
-radial-gradient(1000px 800px at 55% 85%, rgba(179, 107, 255, 0.55), transparent 66%),
-linear-gradient(120deg, rgba(255, 58, 169, 0.35), rgba(255, 122, 217, 0.30), rgba(179, 107, 255, 0.35));
-background-size: 140% 140%, 150% 150%, 160% 160%, 220% 220%;
-background-position: 0% 0%, 100% 10%, 60% 100%, 0% 50%;
-animation: bgFlow 14s ease-in-out infinite alternate;
+.leg > .leg-inner{
+position: absolute;
+height: 65%;
+width: 100%;
+top: 100%;
+transform-origin: center top;
+animation: legInnerMove infinite var(--duration) calc(var(--delay, 0s));
 }
 
 
-
-
-/* soft vignette + sparkle grain */
-body::before{
-content:"";
-position:fixed; inset:0;
-pointer-events:none;
-z-index:0;
-background:
-radial-gradient(70vmax 55vmax at 50% 35%, rgba(255,255,255,.12), rgba(0,0,0,.20)),
-radial-gradient(70vmax 55vmax at 50% 120%, rgba(0,0,0,.25), rgba(0,0,0,.55));
-mix-blend-mode: soft-light;
+@keyframes legInnerMove{
+from, to { transform: none; }
+33% { transform: rotate(70deg); }
+76% { transform: none; }
 }
 
 
-body::after{
-content:"";
-position:fixed; inset:-18%;
-pointer-events:none;
-z-index:1;
+.leg > .leg-inner::before{
+content: "";
+width: 45px;
+height: 45px;
+background-color: var(--color);
+position: absolute;
+border-radius: 50%;
+top: -22.5px;
+}
 
 
-/* tiny noise without external assets */
-background:
-repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, rgba(0,0,0,0) 1px 3px),
-repeating-linear-gradient(90deg, rgba(255,255,255,.02) 0 1px, rgba(0,0,0,0) 1px 4px);
+.leg > .leg-inner > .fur{
+width: 100%;
+height: 100%;
+position: absolute;
+overflow: hidden;
+}
+
+
+.leg > .leg-inner > .fur::after{
+content: "";
+position: absolute;
+width: 100%;
+height: 150%;
+top: 0;
+left: 0;
+background-color: var(--color);
+transform-origin: center top;
+transform: rotate(15deg);
+}
+
+
+/* Wenn JS den Hund bewegt, geben wir extra "run" vibes */
+.dog.running .dogArt{ filter: drop-shadow(0 18px 55px rgba(0,0,0,.22)); }
+.dog.grab .dogArt{ transform: rotate(-6deg) scale(1.02); transform-origin: center; }
+
+
+@media (max-width: 900px){
+
+
+body{ overflow:hidden; }
+}
+
+
+@media (max-width: 640px){
+.stage{ padding-top: calc(env(safe-area-inset-top, 0px) + 12px); }
+}
+
+
+/* extra-small phones */
+@media (max-width: 520px){
+.card{ width: 94vw; }
+.btn{ width: 90vw; }
+.dog{ transform: translateZ(0) scale(0.54); }
+}
+
+
+}
+
+
+/* Optional: reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce){
+body{ animation: none; }
+body::after{ animation: none; }
+.dogArt, .dogArt *{ animation: none !important; }
+.heart-pop{ animation: none; opacity: 1; }
+}
+
+
+body::after{ animation: none; }
+.dog-body{ animation: none; }
+.dog.running .dog-body{ animation: none; }
+.dog.returning .dog-body{ animation: none; }
+.heart-pop{ animation: none; opacity: 1; }
 }
