@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Do you want to be my Valentine?</title>
+<link rel="stylesheet" href="./css/style.css" />
+</head>
+
+
+<body>
+<main class="stage">
+<section class="card" role="dialog" aria-label="Valentine question">
+<h1>Nuray, möchtest du mein Valentine sein?</h1>
+<p class="subtitle">(Warnung: Ein Hund ist gegen „Nein“ eingestellt 🐾)</p>
+
+
+<div class="actions">
+<button id="btnYes" class="btn yes" type="button">
+<span class="label">✨ Ja ✨</span>
+<span class="sub">okay wow cute</span>
+</button>
+
+
+<button id="btnNo" class="btn no" type="button">
+<span class="label">Nein</span>
+<span class="sub">(versuch’s doch)</span>
+</button>
+</div>
+</section>
+</main>
+
+<div id="dog" class="dog" aria-hidden="true">
+<div class="dog-body">
+<span class="dog-emoji" aria-hidden="true">🐶</span>
+<span class="dog-heart" aria-hidden="true">💗</span>
+</div>
+</div>
+
+
+<script src="./js/app.js"></script>
+</body>
+</html>
