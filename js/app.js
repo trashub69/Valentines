@@ -1,3 +1,12 @@
+/**
+ * Sweet Pink Valentine page:
+ * - Kein Sound.
+ * - "Nein" wird vom Hund geschnappt und weggetragen.
+ * - "Ja" spawnt Herzchen + Popup.
+ *
+ * Required DOM ids:
+ *   #btnNo, #btnYes, #dog
+ */
 
 const btnNo = document.getElementById("btnNo");
 const btnYes = document.getElementById("btnYes");
