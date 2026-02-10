@@ -706,6 +706,11 @@ transform: scale(clamp(0.32, 0.18vw + 0.32, 0.50));
   transform-origin: center top;
   transform: rotate(15deg);
 }
+/* --- dog bite layering (keep snout over NO button) --- */
+.btn.no.in-mouth{ z-index: 290; }
+.dog{ z-index: 300; }
+.dogArt .snout{ z-index: 60; }
+
 
 /* accessibility */
 @media (prefers-reduced-motion: reduce){
