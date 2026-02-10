@@ -711,3 +711,8 @@ transform: scale(clamp(0.32, 0.18vw + 0.32, 0.50));
 @media (prefers-reduced-motion: reduce){
   .dogArt, .dogArt *{ animation: none !important; }
 }
+@media (max-width: 520px){
+  .dog{
+    transform: scale(0.34);
+  }
+}
