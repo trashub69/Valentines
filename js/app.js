@@ -1,51 +1,83 @@
 /**
  * Valentine page (no sound):
- * - NO: dog runs to the NO button, grabs it (button docks into snout),
- *       carries it to a new position, drops it, stays next to it.
- * - YES: pops hearts + popup
+ * - NO: dog runs to NO, grabs it (button becomes a child of a "mouth slot"),
+ *       carries it to a new position, drops it, stays near it.
+ * - YES: hearts + popup
  *
- * Required DOM ids:
- *   #btnNo, #btnYes, #dog (wrapper), inside dog: .snout
+ * Required:
+ *   #btnNo, #btnYes, #dog wrapper, inside dog: .snout
  */
 
 const btnNo = document.getElementById("btnNo");
 const btnYes = document.getElementById("btnYes");
 const dog = document.getElementById("dog");
 
-// ---- config ----
 const CONFIG = {
   yesPopupText: "Yessss 💖",
 
-  carryDurationMs: 620,
-  grabDurationMs: 220,
-  settleDurationMs: 280,
+  // timings
+  runToBtnMs: 360,
+  grabMs: 220,
+  carryMs: 620,
+  dropMs: 280,
 
+  // where dog stands relative to NO when idle next to it
   dogOffsetX: -140,
   dogOffsetY: -70,
 
-  // bite tuning
-  biteX: 0.62,
-  biteY: 0.55,
-  biteNudgeX: 0,
-  biteNudgeY: 2,
+  // drop padding from screen edges
+  pad: 16,
 
-  minEdgePadding: 16,
+  // mouth position tweak (inside slot)
+  mouthNudgeX: 6,
+  mouthNudgeY: 6,
 };
 
+function vp() {
+  // stable viewport size on mobile
+  const w = document.documentElement.clientWidth;
+  const h = document.documentElement.clientHeight;
+  return { w, h };
+}
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function rand(min, max) { return Math.random() * (max - min) + min; }
-function viewport() { return { w: window.innerWidth, h: window.innerHeight }; }
-
-function rect(el){
+function rect(el) {
   const r = el.getBoundingClientRect();
-  return { left: r.left, top: r.top, width: r.width, height: r.height, cx: r.left + r.width/2, cy: r.top + r.height/2 };
+  return { left: r.left, top: r.top, width: r.width, height: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
 }
 
+function animateTo(el, keyframes, options) {
+  if (!el) return Promise.resolve();
+  try {
+    const anim = el.animate(keyframes, options);
+    return anim.finished.catch(() => {});
+  } catch {
+    const last = keyframes[keyframes.length - 1];
+    for (const [k, v] of Object.entries(last)) el.style[k] = v;
+    return Promise.resolve();
+  }
+}
+
+function setDogState(state) {
+  if (!dog) return;
+  dog.classList.toggle("running", state === "running");
+  dog.classList.toggle("grab", state === "grab");
+  dog.classList.toggle("idle", state === "idle");
+}
+
+function placeDogAt(x, y) {
+  if (!dog) return;
+  dog.style.position = "fixed";
+  dog.style.left = `${x}px`;
+  dog.style.top = `${y}px`;
+}
+
+/** Find a good new NO position */
 function findNewButtonPosition(btn) {
-  const { w, h } = viewport();
+  const { w, h } = vp();
   const r = btn.getBoundingClientRect();
 
-  const pad = CONFIG.minEdgePadding;
+  const pad = CONFIG.pad;
   const maxX = w - r.width - pad;
   const maxY = h - r.height - pad;
 
@@ -63,64 +95,85 @@ function findNewButtonPosition(btn) {
   return { left: x, top: y };
 }
 
-function placeDogAt(x, y) {
-  if (!dog) return;
-  dog.style.position = "fixed";
-  dog.style.left = `${x}px`;
-  dog.style.top = `${y}px`;
+/** Ensure dog stays on screen (uses actual scaled rect size) */
+function clampDogToScreen(x, y) {
+  const { w, h } = vp();
+  const dr = dog.getBoundingClientRect();
+  const maxX = w - dr.width - 8;
+  const maxY = h - dr.height - 8;
+  return {
+    x: clamp(x, 8, Math.max(8, maxX)),
+    y: clamp(y, 8, Math.max(8, maxY)),
+  };
 }
 
-function setDogState(state) {
-  if (!dog) return;
-  dog.classList.toggle("running", state === "running");
-  dog.classList.toggle("grab", state === "grab");
-  dog.classList.toggle("idle", state === "idle");
-}
-
-function animateTo(el, keyframes, options) {
-  if (!el) return Promise.resolve();
-  try {
-    const anim = el.animate(keyframes, options);
-    return anim.finished.catch(() => {});
-  } catch {
-    const last = keyframes[keyframes.length - 1];
-    for (const [k, v] of Object.entries(last)) el.style[k] = v;
-    return Promise.resolve();
-  }
-}
-
-function dockButtonToSnout() {
-  if (!dog || !btnNo) return null;
-  const snout = dog.querySelector(".snout");
+/** Create (or reuse) a mouth slot positioned on the snout */
+function getMouthSlot() {
+  const snout = dog?.querySelector(".snout");
   if (!snout) return null;
 
+  let slot = dog.querySelector(".mouth-slot");
+  if (!slot) {
+    slot = document.createElement("div");
+    slot.className = "mouth-slot";
+    dog.appendChild(slot);
+  }
+
+  // Position slot relative to dog, based on current snout rect.
+  const d = rect(dog);
   const s = rect(snout);
+
+  const left = (s.cx - d.left) + CONFIG.mouthNudgeX;
+  const top  = (s.cy - d.top) + CONFIG.mouthNudgeY;
+
+  slot.style.left = `${left}px`;
+  slot.style.top  = `${top}px`;
+
+  return slot;
+}
+
+/** Move button into dog mouth (re-parent) */
+function grabButtonIntoMouth() {
+  const slot = getMouthSlot();
+  if (!slot) return false;
+
+  // keep visual size stable
   const b = rect(btnNo);
 
-  const targetLeft = s.cx - b.width * CONFIG.biteX + CONFIG.biteNudgeX;
-  const targetTop  = s.cy - b.height * CONFIG.biteY + CONFIG.biteNudgeY;
+  // Move button into slot
+  slot.appendChild(btnNo);
+
+  // Now button is positioned relative to slot
+  btnNo.style.position = "absolute";
+  btnNo.style.left = "0px";
+  btnNo.style.top = "0px";
+
+  // Set explicit width so it doesn't reflow weird
+  btnNo.style.width = `${b.width}px`;
+
+  btnNo.classList.add("grabbed", "in-mouth");
+  return true;
+}
+
+/** Drop button back to body and fix its screen coords */
+function dropButtonToScreen(left, top) {
+  // move back to body
+  document.body.appendChild(btnNo);
 
   btnNo.style.position = "fixed";
-  btnNo.style.margin = "0";
-  btnNo.style.left = `${b.left}px`;
-  btnNo.style.top  = `${b.top}px`;
-
-  // dog above button so snout can overlap it
-  dog.style.zIndex = "300";
-  btnNo.style.zIndex = "290";
-  btnNo.classList.add("grabbed", "in-mouth");
-
-  return { targetLeft, targetTop };
+  btnNo.style.left = `${left}px`;
+  btnNo.style.top = `${top}px`;
+  btnNo.style.width = ""; // back to CSS control
+  btnNo.classList.remove("grabbed", "in-mouth");
 }
 
 let busy = false;
 
 async function dogStealsNo() {
   if (busy) return;
-
   if (!btnNo) return;
 
-  // If dog isn't present, fall back to old dodge behavior (just move the button)
+  // Fallback if dog missing
   if (!dog) {
     const pos = findNewButtonPosition(btnNo);
     btnNo.style.position = "fixed";
@@ -130,118 +183,117 @@ async function dogStealsNo() {
   }
 
   busy = true;
-  btnNo.style.pointerEvents = "none"; // ✅ prevents retrigger + "flying"
+  btnNo.style.pointerEvents = "none";
 
   try {
     const b0 = rect(btnNo);
-    const dogX0 = clamp(b0.left + CONFIG.dogOffsetX, 8, viewport().w - 120);
-    const dogY0 = clamp(b0.top + CONFIG.dogOffsetY, 8, viewport().h - 120);
+
+    // 1) Run dog near button
+    setDogState("running");
+
+    const targetDogX0 = b0.left + CONFIG.dogOffsetX;
+    const targetDogY0 = b0.top + CONFIG.dogOffsetY;
+
+    const clamped0 = clampDogToScreen(targetDogX0, targetDogY0);
+
+    await animateTo(dog,
+      [
+        { left: dog.style.left || `${clamped0.x}px`, top: dog.style.top || `${clamped0.y}px` },
+        { left: `${clamped0.x}px`, top: `${clamped0.y}px` }
+      ],
+      { duration: CONFIG.runToBtnMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
+    );
+    placeDogAt(clamped0.x, clamped0.y);
+
+    // 2) Grab into mouth (re-parent)
+    setDogState("grab");
+
+    // Convert button to fixed before reparent so its last position is stable for the grab animation
+    btnNo.style.position = "fixed";
+    btnNo.style.left = `${b0.left}px`;
+    btnNo.style.top = `${b0.top}px`;
+
+    // Animate it toward mouth slot (screen coords) first, then reparent
+    const slot = getMouthSlot();
+    if (slot) {
+      const slotRect = rect(slot);
+      await animateTo(btnNo,
+        [
+          { left: `${b0.left}px`, top: `${b0.top}px`, transform: "scale(1) rotate(0deg)" },
+          { left: `${slotRect.left}px`, top: `${slotRect.top}px`, transform: "scale(0.98) rotate(-3deg)" }
+        ],
+        { duration: CONFIG.grabMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
+      );
+    }
+
+    // Now attach for perfect carry
+    const grabbed = grabButtonIntoMouth();
+
+    // 3) Choose new spot + carry dog there (button follows automatically)
+    const pos = findNewButtonPosition(btnNo);
+    const targetDogX1 = pos.left + CONFIG.dogOffsetX;
+    const targetDogY1 = pos.top + CONFIG.dogOffsetY;
+    const clamped1 = clampDogToScreen(targetDogX1, targetDogY1);
 
     setDogState("running");
     await animateTo(dog,
       [
-        { left: dog.style.left || `${dogX0}px`, top: dog.style.top || `${dogY0}px` },
-        { left: `${dogX0}px`, top: `${dogY0}px` }
+        { left: `${clamped0.x}px`, top: `${clamped0.y}px` },
+        { left: `${clamped1.x}px`, top: `${clamped1.y}px` }
       ],
-      { duration: 360, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
+      { duration: CONFIG.carryMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
     );
-    placeDogAt(dogX0, dogY0);
+    placeDogAt(clamped1.x, clamped1.y);
 
+    // keep mouth slot positioned correctly after movement (important if dog scale/viewport changed)
+    getMouthSlot();
+
+    // 4) Drop at new position
     setDogState("grab");
-    const dock = dockButtonToSnout();
 
-    if (dock) {
+    // If we didn't manage to grab (missing snout), just teleport button
+    if (!grabbed) {
+      btnNo.style.position = "fixed";
+      btnNo.style.left = `${pos.left}px`;
+      btnNo.style.top = `${pos.top}px`;
+    } else {
+      // Drop with a tiny animation from mouth to final spot
+      const mouthNow = rect(dog.querySelector(".mouth-slot"));
+      // first put it back on screen at mouth coords
+      document.body.appendChild(btnNo);
+      btnNo.style.position = "fixed";
+      btnNo.style.left = `${mouthNow.left}px`;
+      btnNo.style.top = `${mouthNow.top}px`;
+      btnNo.classList.add("grabbed", "in-mouth");
+
       await animateTo(btnNo,
         [
-          { left: `${b0.left}px`, top: `${b0.top}px`, transform: "scale(1) rotate(0deg)" },
-          { left: `${dock.targetLeft}px`, top: `${dock.targetTop}px`, transform: "scale(0.98) rotate(-3deg)" }
+          { left: `${mouthNow.left}px`, top: `${mouthNow.top}px`, transform: "scale(0.98) rotate(-3deg)" },
+          { left: `${pos.left}px`, top: `${pos.top}px`, transform: "scale(1) rotate(0deg)" }
         ],
-        { duration: CONFIG.grabDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
+        { duration: CONFIG.dropMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
       );
+
+      dropButtonToScreen(pos.left, pos.top);
     }
-
-    const pos = findNewButtonPosition(btnNo);
-    const dogX1 = clamp(pos.left + CONFIG.dogOffsetX, 8, viewport().w - 120);
-    const dogY1 = clamp(pos.top + CONFIG.dogOffsetY, 8, viewport().h - 120);
-
-    setDogState("running");
-
-    const dogMove = animateTo(dog,
-      [
-        { left: `${dogX0}px`, top: `${dogY0}px` },
-        { left: `${dogX1}px`, top: `${dogY1}px` }
-      ],
-      { duration: CONFIG.carryDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
-    );
-
-    let btnMove = Promise.resolve();
-    const snout = dog.querySelector(".snout");
-    if (snout) {
-      const sNow = rect(snout);
-      const dNow = rect(dog);
-      const snoutOffsetX = sNow.cx - dNow.left;
-      const snoutOffsetY = sNow.cy - dNow.top;
-
-      const snoutDestCx = dogX1 + snoutOffsetX;
-      const snoutDestCy = dogY1 + snoutOffsetY;
-
-      const bNow = rect(btnNo);
-      const btnDestLeft = snoutDestCx - bNow.width * CONFIG.biteX + CONFIG.biteNudgeX;
-      const btnDestTop  = snoutDestCy - bNow.height * CONFIG.biteY + CONFIG.biteNudgeY;
-
-      btnMove = animateTo(btnNo,
-        [
-          { left: `${bNow.left}px`, top: `${bNow.top}px` },
-          { left: `${btnDestLeft}px`, top: `${btnDestTop}px` }
-        ],
-        { duration: CONFIG.carryDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
-      );
-    }
-
-    await Promise.all([dogMove, btnMove]);
-    placeDogAt(dogX1, dogY1);
-
-    setDogState("grab");
-    const bAfterCarry = rect(btnNo);
-
-    await animateTo(btnNo,
-      [
-        { left: `${bAfterCarry.left}px`, top: `${bAfterCarry.top}px`, transform: "scale(0.98) rotate(-3deg)" },
-        { left: `${pos.left}px`, top: `${pos.top}px`, transform: "scale(1) rotate(0deg)" }
-      ],
-      { duration: CONFIG.settleDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
-    );
-
-    btnNo.style.left = `${pos.left}px`;
-    btnNo.style.top  = `${pos.top}px`;
-
-    btnNo.classList.remove("grabbed", "in-mouth");
-    btnNo.style.zIndex = "";
-    dog.style.zIndex = "";
 
     setDogState("idle");
   } finally {
-    // ✅ ALWAYS restore
     btnNo.style.pointerEvents = "";
     busy = false;
   }
 }
 
-
-/* NO interactions */
+/* NO interactions: click + focus only (NO hover chaos) */
 if (btnNo) {
-  // click / tap only (no hover retrigger)
   btnNo.addEventListener("click", (e) => {
     e.preventDefault();
     dogStealsNo();
   });
-
-  // keyboard users
   btnNo.addEventListener("focus", () => dogStealsNo());
 }
 
-
-/* YES */
+/* YES button */
 function popWhiteHearts(fromEl) {
   if (!fromEl) return;
   const r = fromEl.getBoundingClientRect();
@@ -276,7 +328,7 @@ if (btnYes) {
   });
 }
 
-/* init */
+/* init dog */
 (function initDog() {
   if (!dog) return;
   if (!dog.style.left && !dog.style.top) placeDogAt(18, 18);
