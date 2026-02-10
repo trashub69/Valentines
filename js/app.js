@@ -1,7 +1,7 @@
 /**
  * Sweet Pink Valentine page:
  * - Kein Sound.
- * - "Nein" wird vom Hund geschnappt und weggetragen.
+ * - "Nein" wird vom Hund geschnappt, weggetragen, abgesetzt und der Hund bleibt daneben.
  * - "Ja" spawnt Herzchen + Popup.
  *
  * Required DOM ids:
@@ -14,11 +14,16 @@ const dog = document.getElementById("dog");
 
 const CONFIG = {
   yesPopupText: "Yessss 💖",
-  carryDurationMs: 850,
-  runToDurationMs: 420,
-  returnDurationMs: 520,
-  offscreenPadding: 140,
-  appearDelayMs: 240,
+
+  // slower / cuter
+  runToDurationMs: 780,
+  carryDurationMs: 1400,
+
+  // dog stands next to the dropped button
+  parkOffsetPx: { x: -115, y: 14 },
+
+  // where the button sits relative to dog while carried (mouth-ish)
+  mouthOffsetPx: { x: 34, y: 42 },
 };
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -35,28 +40,17 @@ function setDogXY(x, y) {
   dog.style.top = `${y}px`;
 }
 
-/**
- * Animiert das Element per Web Animations API zu einer Zielposition.
- * Danach "committen" wir die Position in left/top und resetten transform.
- */
 function animateTo(el, toLeft, toTop, duration, easing = "cubic-bezier(.2,.9,.2,1)") {
   const from = el.getBoundingClientRect();
-  const fromLeft = from.left;
-  const fromTop = from.top;
-
-  const dx = toLeft - fromLeft;
-  const dy = toTop - fromTop;
+  const dx = toLeft - from.left;
+  const dy = toTop - from.top;
 
   const anim = el.animate(
-    [
-      { transform: `translate(0px, 0px)` },
-      { transform: `translate(${dx}px, ${dy}px)` },
-    ],
+    [{ transform: "translate(0px,0px)" }, { transform: `translate(${dx}px, ${dy}px)` }],
     { duration, easing, fill: "forwards" }
   );
 
   return anim.finished.then(() => {
-    // cancel only animations on the dog element, then commit final position
     el.getAnimations().forEach(a => a.cancel());
     setDogXY(toLeft, toTop);
     el.style.transform = "none";
@@ -128,32 +122,30 @@ async function dogCarryNo() {
   btnNo.classList.add("targeted");
   btnNo.disabled = true;
 
-  // dog runs to button
+  // run to button
   dog.classList.add("running");
   const to = rectCenter(btnNo);
   const dogRect = dog.getBoundingClientRect();
 
-  const targetLeft = clamp(to.x - dogRect.width * 0.65, 8, viewport().w - dogRect.width - 8);
-  const targetTop  = clamp(to.y - dogRect.height * 0.55, 8, viewport().h - dogRect.height - 8);
+  const grabLeft = clamp(to.x - dogRect.width * 0.68, 8, viewport().w - dogRect.width - 8);
+  const grabTop  = clamp(to.y - dogRect.height * 0.60, 8, viewport().h - dogRect.height - 8);
 
-  await animateTo(dog, targetLeft, targetTop, CONFIG.runToDurationMs);
+  await animateTo(dog, grabLeft, grabTop, CONFIG.runToDurationMs);
 
-  // grab!
+  // grab
   dog.classList.remove("running");
   dog.classList.add("grab");
   btnNo.classList.add("grabbed");
-  btnNo.style.transition = "transform 120ms ease, opacity 120ms ease";
-  btnNo.style.transform = "scale(0.96) rotate(-3deg)";
+  btnNo.style.transition = "transform 180ms ease";
+  btnNo.style.transform = "scale(0.96) rotate(-4deg)";
 
-  // carry offscreen
-  const { w, h } = viewport();
-  const offX = w + CONFIG.offscreenPadding;
-  const offY = clamp(rand(h * 0.15, h * 0.75), 16, h - 16);
+  // new spot for the button
+  const pos = findNewButtonPosition(btnNo);
 
   // follow dog with button while carrying
   const dogStart = dog.getBoundingClientRect();
-  const btnOffsetX = rBtn.left - dogStart.left + 18;
-  const btnOffsetY = rBtn.top - dogStart.top + 28;
+  const btnOffsetX = rBtn.left - dogStart.left + CONFIG.mouthOffsetPx.x;
+  const btnOffsetY = rBtn.top  - dogStart.top  + CONFIG.mouthOffsetPx.y;
 
   let raf = 0;
   const follow = () => {
@@ -164,50 +156,35 @@ async function dogCarryNo() {
   };
   raf = requestAnimationFrame(follow);
 
+  // carry to new place, park next to it
   dog.classList.add("running");
-  await animateTo(dog, offX, offY, CONFIG.carryDurationMs);
+  const parkLeft = clamp(pos.left + CONFIG.parkOffsetPx.x, 8, viewport().w - dogRect.width - 8);
+  const parkTop  = clamp(pos.top  + CONFIG.parkOffsetPx.y, 8, viewport().h - dogRect.height - 8);
+
+  await animateTo(dog, parkLeft, parkTop, CONFIG.carryDurationMs);
 
   cancelAnimationFrame(raf);
 
-  // button disappears, then respawns elsewhere
-  btnNo.style.opacity = "0";
+  // drop
   dog.classList.remove("running");
   dog.classList.remove("grab");
 
-  const pos = findNewButtonPosition(btnNo);
   btnNo.style.left = `${pos.left}px`;
   btnNo.style.top = `${pos.top}px`;
   btnNo.style.transform = "none";
 
-  window.setTimeout(() => {
-    btnNo.style.opacity = "1";
-    btnNo.classList.remove("grabbed");
-    btnNo.classList.remove("targeted");
-    btnNo.disabled = false;
-  }, CONFIG.appearDelayMs);
-
-  // dog returns to corner
-  dog.classList.add("returning");
-  await animateTo(dog, 18, 18, CONFIG.returnDurationMs, "cubic-bezier(.2,.8,.2,1)");
-  dog.classList.remove("returning");
+  btnNo.classList.remove("grabbed");
+  btnNo.classList.remove("targeted");
+  btnNo.disabled = false;
 
   carrying = false;
 }
 
-// no button: click + touch
 if (btnNo) {
-  btnNo.addEventListener("click", (e) => {
-    e.preventDefault();
-    dogCarryNo();
-  });
-
-  btnNo.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    dogCarryNo();
-  }, { passive: false });
+  btnNo.addEventListener("click", (e) => { e.preventDefault(); dogCarryNo(); });
+  btnNo.addEventListener("touchstart", (e) => { e.preventDefault(); dogCarryNo(); }, { passive: false });
 }
 
-// yes button
 if (btnYes) {
   btnYes.addEventListener("click", () => {
     popHearts(btnYes);
@@ -217,3 +194,14 @@ if (btnYes) {
 
 // initial placement
 if (dog) setDogXY(18, 18);
+
+// keep dog on-screen on resize
+window.addEventListener("resize", () => {
+  if (!dog) return;
+  const r = dog.getBoundingClientRect();
+  const { w, h } = viewport();
+  setDogXY(
+    clamp(r.left, 8, w - r.width - 8),
+    clamp(r.top, 8, h - r.height - 8)
+  );
+});
