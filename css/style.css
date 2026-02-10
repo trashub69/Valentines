@@ -711,6 +711,47 @@ transform: scale(clamp(0.32, 0.18vw + 0.32, 0.50));
 .dog{ z-index: 300; }
 .dogArt .snout{ z-index: 60; }
 
+/* --- Make dog box stable so rect(#dog) doesn't change when button is inside --- */
+#dog{
+  width: 300px;
+  height: 300px;
+  position: fixed;            /* important: stable fixed box */
+  left: 18px;
+  top: 18px;
+  z-index: 300;
+  pointer-events: none;       /* dog shouldn't steal taps */
+}
+
+/* Mobile smaller dog box */
+@media (max-width: 520px){
+  #dog{
+    width: 220px;
+    height: 220px;
+  }
+}
+
+/* Mouth slot anchored inside fixed dog box */
+#dog .mouth-slot{
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* Make the NO button look "bitten" while in mouth */
+#dog .mouth-slot .btn.no{
+  transform: translate(-62%, -55%) rotate(-3deg) scale(0.98);
+  transform-origin: left center;
+}
+
+/* Stop hover wobble while carried */
+.btn.no.in-mouth,
+.btn.no.grabbed{
+  transition: none !important;
+}
+
 
 /* accessibility */
 @media (prefers-reduced-motion: reduce){
