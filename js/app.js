@@ -67,7 +67,6 @@ function setDogState(state) {
 
 function placeDogAt(x, y) {
   if (!dog) return;
-  dog.style.position = "fixed";
   dog.style.left = `${x}px`;
   dog.style.top = `${y}px`;
 }
@@ -147,9 +146,6 @@ function grabButtonIntoMouth() {
   btnNo.style.position = "absolute";
   btnNo.style.left = "0px";
   btnNo.style.top = "0px";
-
-  // Set explicit width so it doesn't reflow weird
-  btnNo.style.width = `${b.width}px`;
 
   btnNo.classList.add("grabbed", "in-mouth");
   return true;
