@@ -1,26 +1,38 @@
 /**
  * Valentine page (no sound):
- * - NO: dog runs to the NO button, grabs it (button docks to snout),
+ * - NO: dog runs to the NO button, grabs it (button docks "into" snout),
  *       carries it to a new position, drops it, stays next to it.
  * - YES: pops hearts + popup
  *
  * Required DOM ids:
- *   #btnNo, #btnYes, #fxLayer (optional), #dog (wrapper), inside dog: .snout
+ *   #btnNo, #btnYes, #dog (wrapper), inside dog: .snout
  */
 
 const btnNo = document.getElementById("btnNo");
 const btnYes = document.getElementById("btnYes");
-const fxLayer = document.getElementById("fxLayer"); // optional (hearts use body anyway)
 const dog = document.getElementById("dog");
 
 // ---- config ----
 const CONFIG = {
   yesPopupText: "Yessss 💖",
-  carryDurationMs: 620,   // movement time for carrying
-  grabDurationMs: 220,    // little snap into mouth
-  settleDurationMs: 280,  // drop + settle
-  dogOffsetX: -140,       // dog stands a bit left of the button
-  dogOffsetY: -70,        // and slightly above
+
+  // movement timings
+  carryDurationMs: 620,
+  grabDurationMs: 220,
+  settleDurationMs: 280,
+
+  // where dog stands relative to NO
+  dogOffsetX: -140,
+  dogOffsetY: -70,
+
+  // ✅ bite tuning: larger X pulls button deeper "into mouth"
+  biteX: 0.62, // was ~0.55
+  biteY: 0.55, // vertical bite
+
+  // fine offsets (pixels) if you want micro adjust later
+  biteNudgeX: 0,
+  biteNudgeY: 2,
+
   minEdgePadding: 16,
 };
 
@@ -33,7 +45,6 @@ function rect(el){
   return { left: r.left, top: r.top, width: r.width, height: r.height, cx: r.left + r.width/2, cy: r.top + r.height/2 };
 }
 
-/** Find a new position for the NO button that stays on screen */
 function findNewButtonPosition(btn) {
   const { w, h } = viewport();
   const r = btn.getBoundingClientRect();
@@ -56,9 +67,8 @@ function findNewButtonPosition(btn) {
   return { left: x, top: y };
 }
 
-/** Ensure dog is positioned with fixed left/top (not transform translate chaos) */
 function placeDogAt(x, y) {
-  if (!dog) return;
+  if *(!dog) return;
   dog.style.position = "fixed";
   dog.style.left = `${x}px`;
   dog.style.top = `${y}px`;
@@ -71,7 +81,23 @@ function setDogState(state) {
   dog.classList.toggle("idle", state === "idle");
 }
 
-/** Dock the NO button to dog's snout so it looks "in mouth" */
+function animateTo(el, keyframes, options) {
+  if (!el) return Promise.resolve();
+  try {
+    const anim = el.animate(keyframes, options);
+    return anim.finished.catch(() => {});
+  } catch {
+    const last = keyframes[keyframes.length - 1];
+    for (const [k, v] of Object.entries(last)) el.style[k] = v;
+    return Promise.resolve();
+  }
+}
+
+/**
+ * Dock NO button to dog's snout:
+ * - Button becomes fixed and gets placed so its center-left is inside snout.
+ * - Button z-index is set UNDER the dog so the snout visually overlaps it.
+ */
 function dockButtonToSnout() {
   if (!dog || !btnNo) return null;
   const snout = dog.querySelector(".snout");
@@ -80,37 +106,22 @@ function dockButtonToSnout() {
   const s = rect(snout);
   const b = rect(btnNo);
 
-  // target: center of button to snout center, slightly lower so it's "bitten"
-  const targetLeft = s.cx - b.width * 0.55;
-  const targetTop  = s.cy - b.height * 0.55;
+  // target top-left for button
+  const targetLeft = s.cx - b.width * CONFIG.biteX + CONFIG.biteNudgeX;
+  const targetTop  = s.cy - b.height * CONFIG.biteY + CONFIG.biteNudgeY;
 
-  // make button fixed so we can animate precisely
+  // lock button to fixed coords
   btnNo.style.position = "fixed";
   btnNo.style.margin = "0";
   btnNo.style.left = `${b.left}px`;
   btnNo.style.top  = `${b.top}px`;
 
-  // set on top of dog
-  btnNo.style.zIndex = "120";
-  btnNo.classList.add("grabbed");
+  // ✅ stacking: dog above button, snout above both (via CSS z-index inside dog)
+  dog.style.zIndex = "300";
+  btnNo.style.zIndex = "290";
+  btnNo.classList.add("grabbed", "in-mouth");
 
   return { targetLeft, targetTop };
-}
-
-/** Animate helper using WAAPI if possible */
-function animateTo(el, keyframes, options) {
-  if (!el) return Promise.resolve();
-  try {
-    const anim = el.animate(keyframes, options);
-    return anim.finished.catch(() => {});
-  } catch {
-    // fallback: jump
-    const last = keyframes[keyframes.length - 1];
-    for (const [k, v] of Object.entries(last)) {
-      el.style[k] = v;
-    }
-    return Promise.resolve();
-  }
 }
 
 let busy = false;
@@ -119,7 +130,7 @@ async function dogStealsNo() {
   if (busy || !btnNo || !dog) return;
   busy = true;
 
-  // step A: move dog near current NO button
+  // Step A: move dog near current NO
   const b0 = rect(btnNo);
   const dogX0 = clamp(b0.left + CONFIG.dogOffsetX, 8, viewport().w - 120);
   const dogY0 = clamp(b0.top + CONFIG.dogOffsetY, 8, viewport().h - 120);
@@ -134,29 +145,27 @@ async function dogStealsNo() {
   );
   placeDogAt(dogX0, dogY0);
 
-  // step B: grab (dock button into snout)
+  // Step B: grab (dock button into snout)
   setDogState("grab");
   const dock = dockButtonToSnout();
+
   if (dock) {
     await animateTo(btnNo,
       [
-        { left: `${b0.left}px`, top: `${b0.top}px`, transform: "scale(1)" },
-        { left: `${dock.targetLeft}px`, top: `${dock.targetTop}px`, transform: "scale(0.98)" }
+        { left: `${b0.left}px`, top: `${b0.top}px`, transform: "scale(1) rotate(0deg)" },
+        { left: `${dock.targetLeft}px`, top: `${dock.targetTop}px`, transform: "scale(0.98) rotate(-3deg)" }
       ],
       { duration: CONFIG.grabDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
     );
   }
 
-  // step C: pick a new position for NO
+  // Step C: choose new position and carry
   const pos = findNewButtonPosition(btnNo);
-
-  // move dog to new location (button stays "attached" by updating relative offsets)
   const dogX1 = clamp(pos.left + CONFIG.dogOffsetX, 8, viewport().w - 120);
   const dogY1 = clamp(pos.top + CONFIG.dogOffsetY, 8, viewport().h - 120);
 
   setDogState("running");
 
-  // Animate dog
   const dogMove = animateTo(dog,
     [
       { left: `${dogX0}px`, top: `${dogY0}px` },
@@ -165,23 +174,21 @@ async function dogStealsNo() {
     { duration: CONFIG.carryDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
   );
 
-  // While dog moves, also update button to stay near snout (simple: animate to future snout dock)
+  // keep button at snout destination
   const snout = dog.querySelector(".snout");
   let btnMove = Promise.resolve();
   if (snout) {
-    // estimate where snout will be after move using current snout offset inside dog
     const sNow = rect(snout);
-    const dogNow = rect(dog);
-    const snoutOffsetX = sNow.cx - dogNow.left;
-    const snoutOffsetY = sNow.cy - dogNow.top;
+    const dNow = rect(dog);
+    const snoutOffsetX = sNow.cx - dNow.left;
+    const snoutOffsetY = sNow.cy - dNow.top;
 
-    // where snout center will be at destination:
     const snoutDestCx = dogX1 + snoutOffsetX;
     const snoutDestCy = dogY1 + snoutOffsetY;
 
     const bNow = rect(btnNo);
-    const btnDestLeft = snoutDestCx - bNow.width * 0.55;
-    const btnDestTop  = snoutDestCy - bNow.height * 0.55;
+    const btnDestLeft = snoutDestCx - bNow.width * CONFIG.biteX + CONFIG.biteNudgeX;
+    const btnDestTop  = snoutDestCy - bNow.height * CONFIG.biteY + CONFIG.biteNudgeY;
 
     btnMove = animateTo(btnNo,
       [
@@ -195,49 +202,45 @@ async function dogStealsNo() {
   await Promise.all([dogMove, btnMove]);
   placeDogAt(dogX1, dogY1);
 
-  // step D: drop NO at its new position, dog stays near it
+  // Step D: drop button at new pos
   setDogState("grab");
   const bAfterCarry = rect(btnNo);
 
   await animateTo(btnNo,
     [
-      { left: `${bAfterCarry.left}px`, top: `${bAfterCarry.top}px`, transform: "scale(0.98)" },
-      { left: `${pos.left}px`, top: `${pos.top}px`, transform: "scale(1)" }
+      { left: `${bAfterCarry.left}px`, top: `${bAfterCarry.top}px`, transform: "scale(0.98) rotate(-3deg)" },
+      { left: `${pos.left}px`, top: `${pos.top}px`, transform: "scale(1) rotate(0deg)" }
     ],
     { duration: CONFIG.settleDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
   );
 
-  // ensure final stable positions
   btnNo.style.left = `${pos.left}px`;
   btnNo.style.top  = `${pos.top}px`;
 
-  // restore button clickability and stacking
-  btnNo.classList.remove("grabbed");
+  // restore normal stacking
+  btnNo.classList.remove("grabbed", "in-mouth");
   btnNo.style.zIndex = "";
+  dog.style.zIndex = "";
 
-  // keep dog next to the button (idle)
   setDogState("idle");
   busy = false;
 }
 
-/* Hook NO interactions */
+/* NO interactions */
 if (btnNo) {
-  // Mobile tap / click
   btnNo.addEventListener("click", (e) => {
     e.preventDefault();
     dogStealsNo();
   });
 
-  // Desktop hover = also steal, optional:
   btnNo.addEventListener("pointerenter", (e) => {
     if (e.pointerType === "mouse") dogStealsNo();
   });
 
-  // Keyboard focus
   btnNo.addEventListener("focus", () => dogStealsNo());
 }
 
-/* YES button */
+/* YES */
 function popWhiteHearts(fromEl) {
   if (!fromEl) return;
   const r = fromEl.getBoundingClientRect();
@@ -272,12 +275,9 @@ if (btnYes) {
   });
 }
 
-/* initial dog placement (bottom-left-ish) */
+/* init dog */
 (function initDog() {
   if (!dog) return;
-  // If CSS already positions it, don't override too aggressively:
-  if (!dog.style.left && !dog.style.top) {
-    placeDogAt(18, 18);
-  }
+  if (!dog.style.left && !dog.style.top) placeDogAt(18, 18);
   setDogState("idle");
 })();
