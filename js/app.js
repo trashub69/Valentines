@@ -72,13 +72,12 @@ function placeDogAt(x, y) {
 }
 
 /** Find a good new NO position */
-function findNewButtonPosition(btn) {
+function findNewButtonPositionBySize(btnW, btnH) {
   const { w, h } = vp();
-  const r = btn.getBoundingClientRect();
-
   const pad = CONFIG.pad;
-  const maxX = w - r.width - pad;
-  const maxY = h - r.height - pad;
+
+  const maxX = w - btnW - pad;
+  const maxY = h - btnH - pad;
 
   const centerAvoid = { x: w / 2, y: h / 2 };
   const avoidRadius = Math.min(w, h) * 0.18;
@@ -87,12 +86,18 @@ function findNewButtonPosition(btn) {
   for (let tries = 0; tries < 40; tries++) {
     x = rand(pad, Math.max(pad, maxX));
     y = rand(pad, Math.max(pad, maxY));
-    const cx = x + r.width / 2;
-    const cy = y + r.height / 2;
+    const cx = x + btnW / 2;
+    const cy = y + btnH / 2;
     if (Math.hypot(cx - centerAvoid.x, cy - centerAvoid.y) > avoidRadius) break;
   }
+
+  // final clamp (important!)
+  x = clamp(x, pad, Math.max(pad, maxX));
+  y = clamp(y, pad, Math.max(pad, maxY));
+
   return { left: x, top: y };
 }
+
 
 /** Ensure dog stays on screen (uses actual scaled rect size) */
 function clampDogToScreen(x, y) {
@@ -171,7 +176,7 @@ async function dogStealsNo() {
 
   // Fallback if dog missing
   if (!dog) {
-    const pos = findNewButtonPosition(btnNo);
+    const pos = findNewButtonPositionBySize(btnW, btnH);
     btnNo.style.position = "fixed";
     btnNo.style.left = `${pos.left}px`;
     btnNo.style.top = `${pos.top}px`;
@@ -183,6 +188,14 @@ async function dogStealsNo() {
 
   try {
     const b0 = rect(btnNo);
+
+    // ✅ stabilize: remember real button size BEFORE it gets scaled inside dog
+  const btnW = b0.width;
+  const btnH = b0.height;
+
+  // ✅ cancel any previous animations that can leave it tiny
+  btnNo.getAnimations?.().forEach(a => a.cancel());
+  btnNo.style.transform = "";
 
     // 1) Run dog near button
     setDogState("running");
@@ -226,7 +239,7 @@ async function dogStealsNo() {
     const grabbed = grabButtonIntoMouth();
 
     // 3) Choose new spot + carry dog there (button follows automatically)
-    const pos = findNewButtonPosition(btnNo);
+    const pos = findNewButtonPositionBySize(btnW, btnH);
     const targetDogX1 = pos.left + CONFIG.dogOffsetX;
     const targetDogY1 = pos.top + CONFIG.dogOffsetY;
     const clamped1 = clampDogToScreen(targetDogX1, targetDogY1);
@@ -272,6 +285,8 @@ async function dogStealsNo() {
 
       dropButtonToScreen(pos.left, pos.top);
     }
+btnNo.getAnimations?.().forEach(a => a.cancel());
+btnNo.style.transform = "";
 
     setDogState("idle");
   } finally {
