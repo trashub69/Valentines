@@ -375,7 +375,7 @@ h1{
   border-bottom-right-radius: 80px;
 
   /* ✅ key: allow snout to show */
-  overflow: visible;
+  overflow: hidden;
 }
 
 .dogArt .head > .fur::before{
