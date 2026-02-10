@@ -118,8 +118,9 @@ let busy = false;
 async function dogStealsNo() {
   if (busy) return;
 
-  // If dog isn't present, fall back to old dodge behavior (just move the button)
   if (!btnNo) return;
+
+  // If dog isn't present, fall back to old dodge behavior (just move the button)
   if (!dog) {
     const pos = findNewButtonPosition(btnNo);
     btnNo.style.position = "fixed";
@@ -129,110 +130,116 @@ async function dogStealsNo() {
   }
 
   busy = true;
+  btnNo.style.pointerEvents = "none"; // ✅ prevents retrigger + "flying"
 
-  const b0 = rect(btnNo);
-  const dogX0 = clamp(b0.left + CONFIG.dogOffsetX, 8, viewport().w - 120);
-  const dogY0 = clamp(b0.top + CONFIG.dogOffsetY, 8, viewport().h - 120);
+  try {
+    const b0 = rect(btnNo);
+    const dogX0 = clamp(b0.left + CONFIG.dogOffsetX, 8, viewport().w - 120);
+    const dogY0 = clamp(b0.top + CONFIG.dogOffsetY, 8, viewport().h - 120);
 
-  setDogState("running");
-  await animateTo(dog,
-    [
-      { left: dog.style.left || `${dogX0}px`, top: dog.style.top || `${dogY0}px` },
-      { left: `${dogX0}px`, top: `${dogY0}px` }
-    ],
-    { duration: 360, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
-  );
-  placeDogAt(dogX0, dogY0);
-
-  setDogState("grab");
-  const dock = dockButtonToSnout();
-
-  if (dock) {
-    await animateTo(btnNo,
+    setDogState("running");
+    await animateTo(dog,
       [
-        { left: `${b0.left}px`, top: `${b0.top}px`, transform: "scale(1) rotate(0deg)" },
-        { left: `${dock.targetLeft}px`, top: `${dock.targetTop}px`, transform: "scale(0.98) rotate(-3deg)" }
+        { left: dog.style.left || `${dogX0}px`, top: dog.style.top || `${dogY0}px` },
+        { left: `${dogX0}px`, top: `${dogY0}px` }
       ],
-      { duration: CONFIG.grabDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
+      { duration: 360, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
     );
-  }
+    placeDogAt(dogX0, dogY0);
 
-  const pos = findNewButtonPosition(btnNo);
-  const dogX1 = clamp(pos.left + CONFIG.dogOffsetX, 8, viewport().w - 120);
-  const dogY1 = clamp(pos.top + CONFIG.dogOffsetY, 8, viewport().h - 120);
+    setDogState("grab");
+    const dock = dockButtonToSnout();
 
-  setDogState("running");
+    if (dock) {
+      await animateTo(btnNo,
+        [
+          { left: `${b0.left}px`, top: `${b0.top}px`, transform: "scale(1) rotate(0deg)" },
+          { left: `${dock.targetLeft}px`, top: `${dock.targetTop}px`, transform: "scale(0.98) rotate(-3deg)" }
+        ],
+        { duration: CONFIG.grabDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
+      );
+    }
 
-  const dogMove = animateTo(dog,
-    [
-      { left: `${dogX0}px`, top: `${dogY0}px` },
-      { left: `${dogX1}px`, top: `${dogY1}px` }
-    ],
-    { duration: CONFIG.carryDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
-  );
+    const pos = findNewButtonPosition(btnNo);
+    const dogX1 = clamp(pos.left + CONFIG.dogOffsetX, 8, viewport().w - 120);
+    const dogY1 = clamp(pos.top + CONFIG.dogOffsetY, 8, viewport().h - 120);
 
-  let btnMove = Promise.resolve();
-  const snout = dog.querySelector(".snout");
-  if (snout) {
-    const sNow = rect(snout);
-    const dNow = rect(dog);
-    const snoutOffsetX = sNow.cx - dNow.left;
-    const snoutOffsetY = sNow.cy - dNow.top;
+    setDogState("running");
 
-    const snoutDestCx = dogX1 + snoutOffsetX;
-    const snoutDestCy = dogY1 + snoutOffsetY;
-
-    const bNow = rect(btnNo);
-    const btnDestLeft = snoutDestCx - bNow.width * CONFIG.biteX + CONFIG.biteNudgeX;
-    const btnDestTop  = snoutDestCy - bNow.height * CONFIG.biteY + CONFIG.biteNudgeY;
-
-    btnMove = animateTo(btnNo,
+    const dogMove = animateTo(dog,
       [
-        { left: `${bNow.left}px`, top: `${bNow.top}px` },
-        { left: `${btnDestLeft}px`, top: `${btnDestTop}px` }
+        { left: `${dogX0}px`, top: `${dogY0}px` },
+        { left: `${dogX1}px`, top: `${dogY1}px` }
       ],
       { duration: CONFIG.carryDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
     );
+
+    let btnMove = Promise.resolve();
+    const snout = dog.querySelector(".snout");
+    if (snout) {
+      const sNow = rect(snout);
+      const dNow = rect(dog);
+      const snoutOffsetX = sNow.cx - dNow.left;
+      const snoutOffsetY = sNow.cy - dNow.top;
+
+      const snoutDestCx = dogX1 + snoutOffsetX;
+      const snoutDestCy = dogY1 + snoutOffsetY;
+
+      const bNow = rect(btnNo);
+      const btnDestLeft = snoutDestCx - bNow.width * CONFIG.biteX + CONFIG.biteNudgeX;
+      const btnDestTop  = snoutDestCy - bNow.height * CONFIG.biteY + CONFIG.biteNudgeY;
+
+      btnMove = animateTo(btnNo,
+        [
+          { left: `${bNow.left}px`, top: `${bNow.top}px` },
+          { left: `${btnDestLeft}px`, top: `${btnDestTop}px` }
+        ],
+        { duration: CONFIG.carryDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
+      );
+    }
+
+    await Promise.all([dogMove, btnMove]);
+    placeDogAt(dogX1, dogY1);
+
+    setDogState("grab");
+    const bAfterCarry = rect(btnNo);
+
+    await animateTo(btnNo,
+      [
+        { left: `${bAfterCarry.left}px`, top: `${bAfterCarry.top}px`, transform: "scale(0.98) rotate(-3deg)" },
+        { left: `${pos.left}px`, top: `${pos.top}px`, transform: "scale(1) rotate(0deg)" }
+      ],
+      { duration: CONFIG.settleDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
+    );
+
+    btnNo.style.left = `${pos.left}px`;
+    btnNo.style.top  = `${pos.top}px`;
+
+    btnNo.classList.remove("grabbed", "in-mouth");
+    btnNo.style.zIndex = "";
+    dog.style.zIndex = "";
+
+    setDogState("idle");
+  } finally {
+    // ✅ ALWAYS restore
+    btnNo.style.pointerEvents = "";
+    busy = false;
   }
-
-  await Promise.all([dogMove, btnMove]);
-  placeDogAt(dogX1, dogY1);
-
-  setDogState("grab");
-  const bAfterCarry = rect(btnNo);
-
-  await animateTo(btnNo,
-    [
-      { left: `${bAfterCarry.left}px`, top: `${bAfterCarry.top}px`, transform: "scale(0.98) rotate(-3deg)" },
-      { left: `${pos.left}px`, top: `${pos.top}px`, transform: "scale(1) rotate(0deg)" }
-    ],
-    { duration: CONFIG.settleDurationMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
-  );
-
-  btnNo.style.left = `${pos.left}px`;
-  btnNo.style.top  = `${pos.top}px`;
-
-  btnNo.classList.remove("grabbed", "in-mouth");
-  btnNo.style.zIndex = "";
-  dog.style.zIndex = "";
-
-  setDogState("idle");
-  busy = false;
 }
+
 
 /* NO interactions */
 if (btnNo) {
+  // click / tap only (no hover retrigger)
   btnNo.addEventListener("click", (e) => {
     e.preventDefault();
     dogStealsNo();
   });
 
-  btnNo.addEventListener("pointerenter", (e) => {
-    if (e.pointerType === "mouse") dogStealsNo();
-  });
-
+  // keyboard users
   btnNo.addEventListener("focus", () => dogStealsNo());
 }
+
 
 /* YES */
 function popWhiteHearts(fromEl) {
