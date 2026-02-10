@@ -212,7 +212,7 @@ h1{
   pointer-events: none;
 
   /* scale nice on mobile/desktop */
-  transform: scale(clamp(0.42, 0.28vw + 0.42, 0.62));
+transform: scale(clamp(0.32, 0.18vw + 0.32, 0.50));
   transform-origin: bottom left;
 
   /* IMPORTANT: avoid washed-out look */
