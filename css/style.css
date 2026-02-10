@@ -320,7 +320,7 @@ h1{
   height: 100%;
   width: 100%;
   border-bottom-right-radius: 80px;
-  overflow: hidden;
+  overflow: visible;
 }
 .head > .fur::before{
   content: '';
