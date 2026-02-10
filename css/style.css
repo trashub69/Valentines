@@ -598,3 +598,64 @@ h1{
   .dogArt, .dogArt *{ animation: none !important; }
   .heart-pop{ animation: none; opacity: 1; }
 }
+/* =========================
+   DOG PATCH (colors + snout/nose)
+   ========================= */
+
+/* 1) Farbpalette auf deine Wunschfarben */
+.dogArt{
+  --color-fur: #fd9bc8;
+  --color-fur-dark: #f47fb6;
+  --color-spot: #c0b1ea;
+  --color-snout: #6a4a7f;
+  --color-collar: #c0b1ea;
+
+  /* etwas langsamer/ruhiger */
+  --duration: 1.0s;
+}
+
+/* 2) Schnauze darf nicht weggeclippt werden */
+.dogArt .head > .fur{
+  overflow: visible !important;
+}
+
+/* 3) Schnauze etwas weiter raus + Nase + Mundlinie */
+.dogArt .snout{
+  right: -10px !important;
+  top: 2px !important;
+  z-index: 6 !important;
+  width: 28% !important;
+  padding-top: 26% !important;
+  border-top-left-radius: 60% !important;
+}
+
+/* Nase */
+.dogArt .snout::after{
+  content: "";
+  position: absolute;
+  width: 46%;
+  height: 46%;
+  right: -18%;
+  top: 18%;
+  background: rgba(0,0,0,.33);
+  border-radius: 50%;
+  box-shadow: 0 2px 0 rgba(255,255,255,.10) inset;
+}
+
+/* Mundlinie */
+.dogArt .snout::before{
+  content: "";
+  position: absolute;
+  width: 78%;
+  height: 48%;
+  left: 10%;
+  bottom: 6%;
+  border-bottom: 3px solid rgba(255,255,255,.14);
+  border-radius: 0 0 24px 24px;
+  transform: rotate(8deg);
+}
+
+/* optional: Collar-Tag heller (passt nicer zum pastel theme) */
+.dogArt .collar::after{
+  background: rgba(255,255,255,.35) !important;
+}
