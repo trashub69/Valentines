@@ -174,7 +174,16 @@ async function dogStealsNo() {
   if (busy) return;
   if (!btnNo) return;
 
-  // Fallback if dog missing
+  // ✅ Always measure button BEFORE any reparent/scale happens
+  const b0 = rect(btnNo);
+  const btnW = b0.width;
+  const btnH = b0.height;
+
+  // ✅ stop leftover animations that can leave it tiny
+  btnNo.getAnimations?.().forEach(a => a.cancel());
+  btnNo.style.transform = "";
+
+  // Fallback if dog missing (use the measured size!)
   if (!dog) {
     const pos = findNewButtonPositionBySize(btnW, btnH);
     btnNo.style.position = "fixed";
@@ -187,22 +196,11 @@ async function dogStealsNo() {
   btnNo.style.pointerEvents = "none";
 
   try {
-    const b0 = rect(btnNo);
-
-    // ✅ stabilize: remember real button size BEFORE it gets scaled inside dog
-  const btnW = b0.width;
-  const btnH = b0.height;
-
-  // ✅ cancel any previous animations that can leave it tiny
-  btnNo.getAnimations?.().forEach(a => a.cancel());
-  btnNo.style.transform = "";
-
     // 1) Run dog near button
     setDogState("running");
 
     const targetDogX0 = b0.left + CONFIG.dogOffsetX;
     const targetDogY0 = b0.top + CONFIG.dogOffsetY;
-
     const clamped0 = clampDogToScreen(targetDogX0, targetDogY0);
 
     await animateTo(dog,
@@ -217,12 +215,12 @@ async function dogStealsNo() {
     // 2) Grab into mouth (re-parent)
     setDogState("grab");
 
-    // Convert button to fixed before reparent so its last position is stable for the grab animation
+    // Make button fixed at its current screen position
     btnNo.style.position = "fixed";
     btnNo.style.left = `${b0.left}px`;
     btnNo.style.top = `${b0.top}px`;
 
-    // Animate it toward mouth slot (screen coords) first, then reparent
+    // Animate it toward mouth slot (screen coords), then reparent
     const slot = getMouthSlot();
     if (slot) {
       const slotRect = rect(slot);
@@ -235,11 +233,12 @@ async function dogStealsNo() {
       );
     }
 
-    // Now attach for perfect carry
     const grabbed = grabButtonIntoMouth();
 
-    // 3) Choose new spot + carry dog there (button follows automatically)
+    // 3) Choose new spot (use ORIGINAL size always)
     const pos = findNewButtonPositionBySize(btnW, btnH);
+
+    // carry dog
     const targetDogX1 = pos.left + CONFIG.dogOffsetX;
     const targetDogY1 = pos.top + CONFIG.dogOffsetY;
     const clamped1 = clampDogToScreen(targetDogX1, targetDogY1);
@@ -254,21 +253,23 @@ async function dogStealsNo() {
     );
     placeDogAt(clamped1.x, clamped1.y);
 
-    // keep mouth slot positioned correctly after movement (important if dog scale/viewport changed)
+    // recompute mouth slot after movement
     getMouthSlot();
 
-    // 4) Drop at new position
+    // 4) Drop
     setDogState("grab");
 
-    // If we didn't manage to grab (missing snout), just teleport button
     if (!grabbed) {
+      // just place the button
       btnNo.style.position = "fixed";
       btnNo.style.left = `${pos.left}px`;
       btnNo.style.top = `${pos.top}px`;
     } else {
-      // Drop with a tiny animation from mouth to final spot
-      const mouthNow = rect(dog.querySelector(".mouth-slot"));
-      // first put it back on screen at mouth coords
+      // move it from mouth to final
+      const mouthEl = dog.querySelector(".mouth-slot");
+      const mouthNow = mouthEl ? rect(mouthEl) : { left: pos.left, top: pos.top };
+
+      // put back on body at mouth coords (screen)
       document.body.appendChild(btnNo);
       btnNo.style.position = "fixed";
       btnNo.style.left = `${mouthNow.left}px`;
@@ -285,8 +286,10 @@ async function dogStealsNo() {
 
       dropButtonToScreen(pos.left, pos.top);
     }
-btnNo.getAnimations?.().forEach(a => a.cancel());
-btnNo.style.transform = "";
+
+    // ✅ hard reset after done (prevents “tiny” next round)
+    btnNo.getAnimations?.().forEach(a => a.cancel());
+    btnNo.style.transform = "";
 
     setDogState("idle");
   } finally {
@@ -294,6 +297,7 @@ btnNo.style.transform = "";
     busy = false;
   }
 }
+
 
 /* NO interactions: click + focus only (NO hover chaos) */
 if (btnNo) {
