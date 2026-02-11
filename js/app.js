@@ -163,10 +163,14 @@ function dropButtonToScreen(left, top) {
 
   btnNo.style.position = "fixed";
   btnNo.style.left = `${left}px`;
-  btnNo.style.top = `${top}px`;
-  btnNo.style.width = ""; // back to CSS control
+  btnNo.style.top  = `${top}px`;
+  btnNo.style.width = "";
+  btnNo.style.pointerEvents = "auto"; // ✅ important
+  btnNo.style.zIndex = "999";         // ✅ prevent it being under overlays/cards
+
   btnNo.classList.remove("grabbed", "in-mouth");
 }
+
 
 let busy = false;
 
@@ -302,7 +306,7 @@ async function dogStealsNo() {
 
     setDogState("idle");
   } finally {
-    btnNo.style.pointerEvents = "";
+    btnNo.style.pointerEvents = "auto";
     busy = false;
   }
 }
