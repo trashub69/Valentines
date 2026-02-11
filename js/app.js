@@ -8,9 +8,9 @@
  *   #btnNo, #btnYes, #dog wrapper, inside dog: .snout
  */
 
-const btnNo  = document.getElementById("btnNo");
+const btnNo = document.getElementById("btnNo");
 const btnYes = document.getElementById("btnYes");
-const dog    = document.getElementById("dog");
+const dog = document.getElementById("dog");
 
 const CONFIG = {
   yesPopupText: "Yessss 💖",
@@ -21,7 +21,7 @@ const CONFIG = {
   carryMs: 620,
   dropMs: 280,
 
-  // where dog stands relative to NO
+  // where dog stands relative to NO when idle next to it
   dogOffsetX: -140,
   dogOffsetY: -70,
 
@@ -34,25 +34,18 @@ const CONFIG = {
 };
 
 function vp() {
-  // stable viewport size on mobile (better than innerHeight)
-  return {
-    w: document.documentElement.clientWidth,
-    h: document.documentElement.clientHeight,
-  };
+  // stable viewport size on mobile
+  const w = document.documentElement.clientWidth;
+  const h = document.documentElement.clientHeight;
+  return { w, h };
 }
-
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function rand(min, max) { return Math.random() * (max - min) + min; }
-
 function rect(el) {
   const r = el.getBoundingClientRect();
   return {
-    left: r.left,
-    top: r.top,
-    width: r.width,
-    height: r.height,
-    cx: r.left + r.width / 2,
-    cy: r.top + r.height / 2,
+    left: r.left, top: r.top, width: r.width, height: r.height,
+    cx: r.left + r.width / 2, cy: r.top + r.height / 2
   };
 }
 
@@ -62,7 +55,6 @@ function animateTo(el, keyframes, options) {
     const anim = el.animate(keyframes, options);
     return anim.finished.catch(() => {});
   } catch {
-    // fallback (no WAAPI)
     const last = keyframes[keyframes.length - 1];
     for (const [k, v] of Object.entries(last)) el.style[k] = v;
     return Promise.resolve();
@@ -72,18 +64,17 @@ function animateTo(el, keyframes, options) {
 function setDogState(state) {
   if (!dog) return;
   dog.classList.toggle("running", state === "running");
-  dog.classList.toggle("grab",    state === "grab");
-  dog.classList.toggle("idle",    state === "idle");
+  dog.classList.toggle("grab", state === "grab");
+  dog.classList.toggle("idle", state === "idle");
 }
 
 function placeDogAt(x, y) {
   if (!dog) return;
-  dog.style.position = "fixed"; // ✅ keep it fixed always
   dog.style.left = `${x}px`;
-  dog.style.top  = `${y}px`;
+  dog.style.top = `${y}px`;
 }
 
-/** Find a good new NO position using a fixed size (prevents "tiny" size bias) */
+/** Find a good new NO position */
 function findNewButtonPositionBySize(btnW, btnH) {
   const { w, h } = vp();
   const pad = CONFIG.pad;
@@ -95,7 +86,6 @@ function findNewButtonPositionBySize(btnW, btnH) {
   const avoidRadius = Math.min(w, h) * 0.18;
 
   let x = pad, y = pad;
-
   for (let tries = 0; tries < 40; tries++) {
     x = rand(pad, Math.max(pad, maxX));
     y = rand(pad, Math.max(pad, maxY));
@@ -104,21 +94,21 @@ function findNewButtonPositionBySize(btnW, btnH) {
     if (Math.hypot(cx - centerAvoid.x, cy - centerAvoid.y) > avoidRadius) break;
   }
 
-  // final clamp
+  // final clamp (important!)
   x = clamp(x, pad, Math.max(pad, maxX));
   y = clamp(y, pad, Math.max(pad, maxY));
 
   return { left: x, top: y };
 }
 
-/** Ensure dog stays on screen (uses actual scaled rect size) */
+/** Ensure dog stays on screen (uses actual visual rect size if dogArt is scaled) */
 function clampDogToScreen(x, y) {
   const { w, h } = vp();
-  const dr = dog.getBoundingClientRect();
+  const art = dog.querySelector?.(".dogArt");
+  const dr = art ? art.getBoundingClientRect() : dog.getBoundingClientRect();
 
   const maxX = w - dr.width - 8;
   const maxY = h - dr.height - 8;
-
   return {
     x: clamp(x, 8, Math.max(8, maxX)),
     y: clamp(y, 8, Math.max(8, maxY)),
@@ -142,7 +132,7 @@ function getMouthSlot() {
   const s = rect(snout);
 
   const left = (s.cx - d.left) + CONFIG.mouthNudgeX;
-  const top  = (s.cy - d.top)  + CONFIG.mouthNudgeY;
+  const top  = (s.cy - d.top) + CONFIG.mouthNudgeY;
 
   slot.style.left = `${left}px`;
   slot.style.top  = `${top}px`;
@@ -161,7 +151,7 @@ function grabButtonIntoMouth() {
   // Now button is positioned relative to slot
   btnNo.style.position = "absolute";
   btnNo.style.left = "0px";
-  btnNo.style.top  = "0px";
+  btnNo.style.top = "0px";
 
   btnNo.classList.add("grabbed", "in-mouth");
   return true;
@@ -173,7 +163,7 @@ function dropButtonToScreen(left, top) {
 
   btnNo.style.position = "fixed";
   btnNo.style.left = `${left}px`;
-  btnNo.style.top  = `${top}px`;
+  btnNo.style.top = `${top}px`;
   btnNo.style.width = ""; // back to CSS control
   btnNo.classList.remove("grabbed", "in-mouth");
 }
@@ -189,16 +179,16 @@ async function dogStealsNo() {
   const btnW = b0.width;
   const btnH = b0.height;
 
-  // ✅ stop leftover animations that can leave it tiny
+  // ✅ stop leftover animations that can leave it tiny / offset
   btnNo.getAnimations?.().forEach(a => a.cancel());
   btnNo.style.transform = "";
 
-  // Fallback if dog missing
+  // Fallback if dog missing (use the measured size!)
   if (!dog) {
-    const pos = findNewButtonPositionBySize(btnW, btnH);
+    const fallbackPos = findNewButtonPositionBySize(btnW, btnH);
     btnNo.style.position = "fixed";
-    btnNo.style.left = `${pos.left}px`;
-    btnNo.style.top  = `${pos.top}px`;
+    btnNo.style.left = `${fallbackPos.left}px`;
+    btnNo.style.top = `${fallbackPos.top}px`;
     return;
   }
 
@@ -210,7 +200,7 @@ async function dogStealsNo() {
     setDogState("running");
 
     const targetDogX0 = b0.left + CONFIG.dogOffsetX;
-    const targetDogY0 = b0.top  + CONFIG.dogOffsetY;
+    const targetDogY0 = b0.top + CONFIG.dogOffsetY;
     const clamped0 = clampDogToScreen(targetDogX0, targetDogY0);
 
     await animateTo(dog,
@@ -228,7 +218,7 @@ async function dogStealsNo() {
     // Make button fixed at its current screen position
     btnNo.style.position = "fixed";
     btnNo.style.left = `${b0.left}px`;
-    btnNo.style.top  = `${b0.top}px`;
+    btnNo.style.top = `${b0.top}px`;
 
     // Animate it toward mouth slot (screen coords), then reparent
     const slot = getMouthSlot();
@@ -241,7 +231,17 @@ async function dogStealsNo() {
         ],
         { duration: CONFIG.grabMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
       );
+
+      // ✅ CRITICAL FIX:
+      // 'fill: forwards' leaves the finished animation effect active.
+      // After re-parenting into the dog mouth, those left/top become relative → button "flies".
+      // So: cancel WAAPI animations BEFORE we move it into the mouth-slot.
+      btnNo.style.left = `${slotRect.left}px`;
+      btnNo.style.top  = `${slotRect.top}px`;
     }
+
+    btnNo.getAnimations?.().forEach(a => a.cancel());
+    btnNo.style.transform = "";
 
     const grabbed = grabButtonIntoMouth();
 
@@ -250,7 +250,7 @@ async function dogStealsNo() {
 
     // carry dog
     const targetDogX1 = pos.left + CONFIG.dogOffsetX;
-    const targetDogY1 = pos.top  + CONFIG.dogOffsetY;
+    const targetDogY1 = pos.top + CONFIG.dogOffsetY;
     const clamped1 = clampDogToScreen(targetDogX1, targetDogY1);
 
     setDogState("running");
@@ -270,25 +270,25 @@ async function dogStealsNo() {
     setDogState("grab");
 
     if (!grabbed) {
-      // just place the button
       btnNo.style.position = "fixed";
       btnNo.style.left = `${pos.left}px`;
-      btnNo.style.top  = `${pos.top}px`;
+      btnNo.style.top = `${pos.top}px`;
     } else {
-      // ✅ KEY FIX: take the REAL on-screen position of the button while still in mouth
-      const bInMouth = rect(btnNo);
+      // move it from mouth to final
+      const mouthEl = dog.querySelector(".mouth-slot");
+      const mouthNow = mouthEl ? rect(mouthEl) : { left: pos.left, top: pos.top };
 
-      // put back on body at the button's actual screen coords (prevents jump/flight)
+      // put back on body at mouth coords (screen)
       document.body.appendChild(btnNo);
       btnNo.style.position = "fixed";
-      btnNo.style.left = `${bInMouth.left}px`;
-      btnNo.style.top  = `${bInMouth.top}px`;
+      btnNo.style.left = `${mouthNow.left}px`;
+      btnNo.style.top = `${mouthNow.top}px`;
       btnNo.classList.add("grabbed", "in-mouth");
 
       await animateTo(btnNo,
         [
-          { left: `${bInMouth.left}px`, top: `${bInMouth.top}px`, transform: "scale(0.98) rotate(-3deg)" },
-          { left: `${pos.left}px`,      top: `${pos.top}px`,      transform: "scale(1) rotate(0deg)" }
+          { left: `${mouthNow.left}px`, top: `${mouthNow.top}px`, transform: "scale(0.98) rotate(-3deg)" },
+          { left: `${pos.left}px`, top: `${pos.top}px`, transform: "scale(1) rotate(0deg)" }
         ],
         { duration: CONFIG.dropMs, easing: "cubic-bezier(.2,.9,.2,1)", fill: "forwards" }
       );
@@ -296,7 +296,7 @@ async function dogStealsNo() {
       dropButtonToScreen(pos.left, pos.top);
     }
 
-    // ✅ hard reset after done (prevents “tiny” next round)
+    // ✅ hard reset after done
     btnNo.getAnimations?.().forEach(a => a.cancel());
     btnNo.style.transform = "";
 
@@ -313,17 +313,15 @@ if (btnNo) {
     e.preventDefault();
     dogStealsNo();
   });
-
   btnNo.addEventListener("focus", () => dogStealsNo());
 }
 
 /* YES button */
 function popWhiteHearts(fromEl) {
   if (!fromEl) return;
-
   const r = fromEl.getBoundingClientRect();
   const cx = r.left + r.width / 2;
-  const cy = r.top  + r.height / 2;
+  const cy = r.top + r.height / 2;
 
   const count = 10;
   for (let i = 0; i < count; i++) {
@@ -337,7 +335,7 @@ function popWhiteHearts(fromEl) {
     const dy = Math.sin(ang) * dist - (30 + Math.random() * 40);
 
     h.style.left = `${cx}px`;
-    h.style.top  = `${cy}px`;
+    h.style.top = `${cy}px`;
     h.style.setProperty("--dx", `${dx.toFixed(1)}px`);
     h.style.setProperty("--dy", `${dy.toFixed(1)}px`);
 
